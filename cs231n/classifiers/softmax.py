@@ -23,6 +23,7 @@ def softmax_loss_naive(W, X, y, reg):
   # Initialize the loss and gradient to zero.
   loss = 0.0
   dW = np.zeros_like(W)
+  num_samples = X.shape[0]
 
   #############################################################################
   # TODO: Compute the softmax loss and its gradient using explicit loops.     #
@@ -30,7 +31,22 @@ def softmax_loss_naive(W, X, y, reg):
   # here, it is easy to run into numeric instability. Don't forget the        #
   # regularization!                                                           #
   #############################################################################
-  pass
+  for s in range(num_samples):
+      scores = W.T.dot(X[s])
+      max_score = np.max(scores)
+      scores -= max_score
+      escores = np.exp(scores)
+      esum = np.sum(escores)
+      prob = escores[y[s]] / esum
+      loss -= np.log(prob)
+      for j in range(W.shape[1]):
+          if y[s] == j:
+              dW[:, j] += -X[s]
+          dW[:, j] += escores[j] / esum * X[s]
+  loss /= num_samples
+  dW /= num_samples
+  loss += reg * np.sum(W ** 2)
+  dW += 2 * reg * W;
   #############################################################################
   #                          END OF YOUR CODE                                 #
   #############################################################################
@@ -54,7 +70,19 @@ def softmax_loss_vectorized(W, X, y, reg):
   # here, it is easy to run into numeric instability. Don't forget the        #
   # regularization!                                                           #
   #############################################################################
-  pass
+  scores = X.dot(W)
+  # Numeric stability:
+  scores -= np.amax(scores, axis=1, keepdims=True)
+  escores = np.exp(scores)
+  esums = np.sum(escores, axis=1, keepdims=True)
+  correct_scores = scores[np.arange(len(scores)), y]
+  loss = (np.sum(np.log(esums)) - np.sum(correct_scores)) / len(X) + reg * np.sum(W ** 2)
+
+  multiplier = escores / esums
+  multiplier[np.arange(len(multiplier)), y] -= 1;
+  np.dot(X.T, multiplier, out=dW)
+  dW /= len(X)
+  dW += 2 * reg * W;
   #############################################################################
   #                          END OF YOUR CODE                                 #
   #############################################################################
