@@ -178,9 +178,9 @@ class FullyConnectedNet(object):
         for i in range(1, len(all_dims)):
             self.params['W%d' % i] = weight_scale * np.random.randn(all_dims[i - 1], all_dims[i])
             self.params['b%d' % i] = np.zeros([all_dims[i]])
-            if self.use_batchnorm:
-                self.params['gamma%d' % i] = 1
-                self.params['beta%d' % i] = 0
+            if self.use_batchnorm and i != len(all_dims) - 1:
+                self.params['gamma%d' % i] = np.ones(all_dims[i])
+                self.params['beta%d' % i] = np.zeros(all_dims[i])
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -239,27 +239,33 @@ class FullyConnectedNet(object):
         # layer, etc.                                                              #
         ############################################################################
                             
-        if self.use_batchnorm or self.use_dropout:
+        if self.use_dropout:
             raise RuntimeError("I don't know how to use this stuff!")
 
-        all_caches = []
+        full_cache = []
         prev_in = X
         for i in range(1, self.num_layers + 1):
             W = self.params['W%d' % i]
             b = self.params['b%d' % i]
-            cache_list = []
+            layer_cache = []
             out, cache = affine_forward(prev_in, W, b)
-            cache_list.append(cache)
+            layer_cache.append(cache)
             if i == self.num_layers:
                 # Last layer: stop at the affine:
-                all_caches.append(tuple(cache_list))
+                full_cache.append(tuple(layer_cache))
                 scores = out
                 break
+            if self.use_batchnorm:
+                out, cache = batchnorm_forward(out, 
+                                               self.params['gamma%d' % i], 
+                                               self.params['beta%d' % i], 
+                                               self.bn_params[i - 1])
+                layer_cache.append(cache)
             out, cache = relu_forward(out)
-            cache_list.append(cache)
-            # TODO(iakhiaev): Batchnorm and dropout are pending ...
+            layer_cache.append(cache)
+            # TODO(iakhiaev): Dropout is pending ...
             prev_in = out
-            all_caches.append(tuple(cache_list))
+            full_cache.append(tuple(layer_cache))
 
         ############################################################################
         #                             END OF YOUR CODE                             #
@@ -285,15 +291,18 @@ class FullyConnectedNet(object):
         ############################################################################
         loss, dx = softmax_loss(scores, y)
         dx, grads['W%d' % self.num_layers], grads['b%d' % self.num_layers] = (
-            affine_backward(dx, all_caches[-1][0]))
-        for cache_idx in reversed(range(len(all_caches) - 1)):
+            affine_backward(dx, full_cache[-1][0]))
+        for cache_idx in reversed(range(len(full_cache) - 1)):
             pidx = cache_idx + 1
-            caches = list(all_caches[cache_idx])
+            layer_cache = list(full_cache[cache_idx])
             # TODO(iakhiaev): Dropout goes here.
-            dx = relu_backward(dx, caches.pop())
-            # TODO(iakhiaev): Batch norm goes here.
-            dx, grads['W%d' % pidx], grads['b%d' % pidx] = affine_backward(dx, caches.pop())
-            if caches:
+            dx = relu_backward(dx, layer_cache.pop())
+            if self.use_batchnorm:
+                dx, grads['gamma%d' % pidx], grads['beta%d' % pidx] = (
+                    batchnorm_backward_alt(dx, layer_cache.pop()))
+
+            dx, grads['W%d' % pidx], grads['b%d' % pidx] = affine_backward(dx, layer_cache.pop())
+            if layer_cache:
                 raise RuntimeError("Items remained in caches: ", len(caches))
                 
         # Regularization:
@@ -301,7 +310,6 @@ class FullyConnectedNet(object):
             W = self.params['W%d' % i]
             loss += 0.5 * self.reg * np.sum(W ** 2)
             grads['W%d' % i] += self.reg * W
-            # TODO(iakhiaev): Batch normalization crap goes here.
         
         ############################################################################
         #                             END OF YOUR CODE                             #
