@@ -238,10 +238,6 @@ class FullyConnectedNet(object):
         # self.bn_params[1] to the forward pass for the second batch normalization #
         # layer, etc.                                                              #
         ############################################################################
-                            
-        if self.use_dropout:
-            raise RuntimeError("I don't know how to use this stuff!")
-
         full_cache = []
         prev_in = X
         for i in range(1, self.num_layers + 1):
@@ -263,7 +259,9 @@ class FullyConnectedNet(object):
                 layer_cache.append(cache)
             out, cache = relu_forward(out)
             layer_cache.append(cache)
-            # TODO(iakhiaev): Dropout is pending ...
+            if self.use_dropout:
+                out, cache = dropout_forward(out, self.dropout_param)
+                layer_cache.append(cache)
             prev_in = out
             full_cache.append(tuple(layer_cache))
 
@@ -295,7 +293,8 @@ class FullyConnectedNet(object):
         for cache_idx in reversed(range(len(full_cache) - 1)):
             pidx = cache_idx + 1
             layer_cache = list(full_cache[cache_idx])
-            # TODO(iakhiaev): Dropout goes here.
+            if self.use_dropout:
+                dx = dropout_backward(dx, layer_cache.pop())
             dx = relu_backward(dx, layer_cache.pop())
             if self.use_batchnorm:
                 dx, grads['gamma%d' % pidx], grads['beta%d' % pidx] = (
