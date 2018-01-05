@@ -28,11 +28,19 @@ class ProstatDS(object):
           X.append([float(v) for v in items[1:-1]])
         # Converting into NumPy arrays:
         self.X = np.array(X, dtype=np.float32)
-        self.y = np.array(y, dtype=np.float32)
+        self.y = np.array(y, dtype=np.int)
             
   @property
   def header_X(self):
     return self.header[1:-1]
+
+  @property
+  def num_samples(self):
+    return self.X.shape[0]
+
+  @property
+  def num_features(self):
+    return self.X.shape[1]
 
   def normalize(self, norm_values = None):
     if self.norm_values:
@@ -91,9 +99,6 @@ def _random_split_indices(N, fractions):
 def dataset_split(in_set, fractions):
   N = in_set.X.shape[0]
   part_indices = _random_split_indices(N, fractions)
-  if in_set.norm_values:
-    raise ValueError("Must split before normalizing!")
-
   out = []
   for idx in part_indices:
     ds = ProstatDS()
@@ -101,5 +106,6 @@ def dataset_split(in_set, fractions):
     ds.y = in_set.y[idx]
     ds.header = in_set.header
     ds.row_ids = [in_set.row_ids[i] for i in idx]
+    ds.norm_values = in_set.norm_values
     out.append(ds)
   return out
