@@ -5,6 +5,16 @@ from cs231n.layers import *
 from cs231n.fast_layers import *
 from cs231n.layer_utils import *
 
+class _ListAppender(object):
+    def __init__(self):
+        self.__dict__["target"] = list()
+    
+    def __setattr__(self, name, value):
+        if name == "append":
+            self.target.append(value)
+        else:
+            raise ValueError("Can only use .append")
+
 
 class ThreeLayerConvNet(object):
     """
@@ -48,7 +58,20 @@ class ThreeLayerConvNet(object):
         # hidden affine layer, and keys 'W3' and 'b3' for the weights and biases   #
         # of the output affine layer.                                              #
         ############################################################################
-        pass
+        # W1 dimensions: F, C, HH, WW
+        self.params['W1'] = weight_scale * np.random.randn(
+            num_filters, input_dim[0], filter_size, filter_size)
+        self.params['b1'] = np.zeros([num_filters])
+        # Note, based on padding given below, the convolution out size is the same
+        # as input size. The maxpool divides this size by 2:
+        Hout, Wout = np.array(input_dim[1:], dtype=np.int) // 2
+        affine_in = Hout * Wout * num_filters
+
+        # Normal affine weights:
+        self.params['W2'] = weight_scale * np.random.randn(affine_in, hidden_dim)
+        self.params['b2'] = np.zeros([hidden_dim])
+        self.params['W3'] = weight_scale * np.random.randn(hidden_dim, num_classes)
+        self.params['b3'] = np.zeros([num_classes])
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -80,7 +103,13 @@ class ThreeLayerConvNet(object):
         # computing the class scores for X and storing them in the scores          #
         # variable.                                                                #
         ############################################################################
-        pass
+        caches = _ListAppender()
+        out = X
+        out, caches.append = conv_relu_pool_forward(out, W1, b1, conv_param, pool_param)
+        out, caches.append = affine_relu_forward(out, W2, b2)
+        out, caches.append = affine_forward(out, W3, b3)
+        scores = out
+        caches = caches.target
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -95,7 +124,17 @@ class ThreeLayerConvNet(object):
         # data loss using softmax, and make sure that grads[k] holds the gradients #
         # for self.params[k]. Don't forget to add L2 regularization!               #
         ############################################################################
-        pass
+        loss, dx = softmax_loss(scores, y)
+        dx, grads['W3'], grads['b3'] = affine_backward(dx, caches.pop())
+        dx, grads['W2'], grads['b2'] = affine_relu_backward(dx, caches.pop())
+        dx, grads['W1'], grads['b1'] = conv_relu_pool_backward(dx, caches.pop())
+        assert len(caches) == 0
+        for key in self.params.keys():
+            if not key.startswith('W'):
+                continue
+            W = self.params[key]
+            loss += 0.5 * self.reg * np.sum(W ** 2)
+            grads[key] += self.reg * W
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
