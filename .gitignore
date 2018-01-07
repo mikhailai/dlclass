@@ -2,3 +2,4 @@
 *.pyc
 .env/*
 .ipynb_checkpoints/
+assignment2/cs231n/im2col_cython.cpython-36m-darwin.so
